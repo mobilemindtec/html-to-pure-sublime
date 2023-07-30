@@ -4,6 +4,42 @@ import sublime_plugin
 from html.parser import HTMLParser
 import re
 
+form_methods = {
+   "post": "POST",
+   "get": "GET"
+}
+
+button_types = {
+  "button": "ButtonButton",
+  "submit": "ButtonSubmit",
+  "reset": "ButtonReset"
+}
+
+input_types = {
+  "button": "InputButton",
+  "checkbox": "InputCheckbox",
+  "color": "InputColor",
+  "date": "InputDate",
+  "datetime-local": "InputDatetimeLocal",
+  "email": "InputEmail",
+  "file": "InputFile",
+  "hidden": "InputHidden",
+  "image": "InputImage",
+  "month": "InputMonth",
+  "number": "InputNumber",
+  "password": "InputPassword",
+  "radio": "InputRadio",
+  "range": "InputRange",
+  "reset": "InputReset",
+  "search": "InputSearch",
+  "submit": "InputSubmit",
+  "tel": "InputTel",
+  "text": "InputText",
+  "time": "InputTime",
+  "url": "InputUrl",
+  "week": "InputWeek",  
+}
+
 class HtmlToPureParser(HTMLParser):
   def __init__(self, indent_size = 2):
     super().__init__()
@@ -20,13 +56,42 @@ class HtmlToPureParser(HTMLParser):
   def trim(self, str):
     return re.sub("^[\n\t ]+|[\n\t ]+$/g", "", str)
   
-  def map_attr(self, attr):
-    # handle elm type keyword 
+  def map_attr(self, tag, attr):
 
     style_attrs = []
+    is_type = False
+    types = {}
+
 
     if attr[0] == "type":
-      attr = ("type_", attr[1])
+      t = attr[1].lower()
+
+      if tag == "input":
+        types = input_types
+      elif tag == "button":
+        types = button_types
+
+      if t in types:
+        attr = ("type_", types[t])
+      else:
+        attr = ("type_", t)
+
+      is_type = True
+
+    if attr[0] == 'method':
+
+      t = attr[1].lower()
+
+      if tag == "form":
+        types = form_methods
+
+      if t.lower() in types:
+        attr = (attr[0], types[t])
+      else:
+        attr = (attr[0], t)
+
+      is_type = True  
+
     elif attr[0] == "class":
       attr = ("class_", attr[1])
     elif attr[0] == "style":       
@@ -39,6 +104,8 @@ class HtmlToPureParser(HTMLParser):
     if len(style_attrs) > 0:
       return ", ".join(style_attrs)
 
+    if is_type:
+      return attr[0] + " " + attr[1]
 
     # handle data-<CUSTOM> attrs, TODO: check list of build in elm functions, if not present, use attribute fn to deal with
     if (attr[0].find("data-") >= 0) or (attr[0].find("role") >= 0):
@@ -63,7 +130,7 @@ class HtmlToPureParser(HTMLParser):
     pre += " " if self.depth else ""
 
     # get attrs
-    _attrs = list(map(self.map_attr, attrs))
+    _attrs = list(map(lambda attr: self.map_attr(tag, attr), attrs))
 
     # Add all element into the tag array
     _tag.append(pre + tag)
